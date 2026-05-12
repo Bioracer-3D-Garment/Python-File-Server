@@ -1,0 +1,33 @@
+services:
+  pipeline-gpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gpu
+    env_file: .env
+    volumes:
+      - ./inputs:/app/inputs
+      - ./poses:/app/poses
+      - ./outputs:/app/outputs
+      - ./cache:/app/cache
+      - ./config:/app/config
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  pipeline-cpu:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    env_file: .env
+    volumes:
+      - ./inputs:/app/inputs
+      - ./poses:/app/poses
+      - ./outputs:/app/outputs
+      - ./cache:/app/cache
+      - ./config:/app/config
+    profiles:
+      - cpu

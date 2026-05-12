@@ -1,0 +1,27 @@
+pipeline:
+  workers: 4                  # concurrent jobs in the thread pool
+  input_dir: inputs/
+  poses_dir: poses/
+  cache_dir: cache/
+  output_dir: outputs/
+
+garment:
+  target_width: 768
+  target_height: 1024
+  background_threshold: 0.90  # rembg alpha threshold
+
+vton:
+  adapter: nano               # nano | fashn_api | fal_api | idm_vton | ootdiffusion
+  num_inference_steps: 30
+  guidance_scale: 2.5
+
+postprocess:
+  quality_threshold: 0.10     # SSIM below this → mark failed
+  output_format: PNG
+
+fal_api:
+  model: fal-ai/cat-vton      # fal-ai/cat-vton | fal-ai/idm-vton
+
+fashn_api:
+  base_url: https://api.fashn.ai/v1
+  timeout: 120                # seconds per request
