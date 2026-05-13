@@ -1,5 +1,5 @@
 pipeline:
-  workers: 4                  # concurrent jobs in the thread pool
+  workers: 4                  # concurrent jobs in the thread pool (sync mode)
   input_dir: inputs/
   poses_dir: poses/
   output_dir: outputs/
@@ -7,7 +7,9 @@ pipeline:
 garment:
   target_width: 768
   target_height: 1024
-  background_threshold: 0.90  # rembg alpha threshold
+  min_width: 100              # reject images smaller than this
+  min_height: 100
+  max_file_mb: 20             # reject files larger than this
 
 postprocess:
   quality_threshold: 0.10     # SSIM below this → mark failed
@@ -16,3 +18,7 @@ postprocess:
 fashn_api:
   base_url: https://api.fashn.ai/v1
   timeout: 120                # seconds per request
+
+celery:
+  broker_url: redis://localhost:6379/0
+  result_backend: redis://localhost:6379/0

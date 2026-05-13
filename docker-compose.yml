@@ -1,4 +1,26 @@
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cpu
+    command: celery -A pipeline.worker worker --loglevel=info --concurrency=4
+    env_file: .env
+    depends_on:
+      - redis
+    environment:
+      - PIPELINE__CELERY__BROKER_URL=redis://redis:6379/0
+      - PIPELINE__CELERY__RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./inputs:/app/inputs
+      - ./poses:/app/poses
+      - ./outputs:/app/outputs
+      - ./config:/app/config
+
   pipeline-gpu:
     build:
       context: .
@@ -8,7 +30,6 @@ services:
       - ./inputs:/app/inputs
       - ./poses:/app/poses
       - ./outputs:/app/outputs
-      - ./cache:/app/cache
       - ./config:/app/config
     deploy:
       resources:
@@ -27,7 +48,6 @@ services:
       - ./inputs:/app/inputs
       - ./poses:/app/poses
       - ./outputs:/app/outputs
-      - ./cache:/app/cache
       - ./config:/app/config
     profiles:
       - cpu

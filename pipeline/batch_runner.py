@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import logging
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -58,7 +59,7 @@ def run_batch(
     run_id: str | None = None,
 ) -> Path:
     """
-    Process every garment × every pose and write result images to outputs/<run_id>/.
+    Process every garment × every pose synchronously via ThreadPoolExecutor.
 
     Returns the path to the run output directory.
     """
@@ -93,9 +94,60 @@ def run_batch(
         futures = {pool.submit(_run_job, job, adapter, cfg, output_dir): job for job in jobs}
         for future in as_completed(futures):
             completed_job = future.result()
-            logger.info("[%s] %s × %s → %s", completed_job.status.value, completed_job.product_id, completed_job.pose_id, completed_job.output_path or completed_job.error[:80])
+            logger.info(
+                "[%s] %s × %s → %s",
+                completed_job.status.value,
+                completed_job.product_id,
+                completed_job.pose_id,
+                completed_job.output_path or completed_job.error[:80],
+            )
 
     done = sum(1 for j in jobs if j.status == JobStatus.DONE)
     failed = sum(1 for j in jobs if j.status == JobStatus.FAILED)
     logger.info("Batch complete: %d done, %d failed. Results: %s", done, failed, output_dir)
     return output_dir
+
+
+def run_batch_async(
+    cfg: dict[str, Any],
+    run_id: str | None = None,
+) -> tuple[Path, list]:
+    """
+    Dispatch all garment × pose jobs to the Celery queue and return immediately.
+
+    Returns (output_dir, list_of_AsyncResult). Requires a running Celery worker
+    and Redis broker (see docker-compose.yml).
+    """
+    from pipeline.worker import run_vton_job
+
+    if run_id is None:
+        run_id = datetime.now().strftime("run_%Y%m%d_%H%M%S")
+
+    pcfg = cfg["pipeline"]
+    input_dir = Path(pcfg["input_dir"])
+    poses_dir = Path(pcfg["poses_dir"])
+    output_dir = Path(pcfg["output_dir"]) / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Deep-copy so each task gets the resolved output_dir for this run
+    run_cfg = copy.deepcopy(cfg)
+    run_cfg["pipeline"]["output_dir"] = str(output_dir)
+
+    garments = _discover_garments(input_dir)
+    pose_paths = _discover_poses(poses_dir)
+
+    if not garments:
+        raise ValueError(f"No garment images found in {input_dir}")
+    if not pose_paths:
+        raise ValueError(f"No pose images found in {poses_dir}")
+
+    tasks = [
+        run_vton_job.delay(str(g), str(p), p.stem, run_cfg)
+        for g in garments
+        for p in pose_paths
+    ]
+
+    logger.info(
+        "Dispatched %d tasks to Celery queue (run_id=%s)", len(tasks), run_id
+    )
+    return output_dir, tasks

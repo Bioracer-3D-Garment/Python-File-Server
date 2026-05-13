@@ -35,7 +35,9 @@ def sample_config(tmp_path) -> dict:
         "garment": {
             "target_width": 32,
             "target_height": 32,
-            "background_threshold": 0.90,
+            "min_width": 1,
+            "min_height": 1,
+            "max_file_mb": 20,
         },
         "postprocess": {
             "quality_threshold": 0.0,
