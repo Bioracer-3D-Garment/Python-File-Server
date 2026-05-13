@@ -3,23 +3,21 @@ from __future__ import annotations
 import io
 import os
 import time
-from typing import Any
 
 import requests
 from PIL import Image
 
-from pipeline.vton.base import VTONAdapter
 from pipeline.utils.image import pil_to_bytes
 
 
-class FashnAPIAdapter(VTONAdapter):
+class FashnAPIAdapter:
     """
     Virtual try-on via the Fashn.ai REST API.
     Docs: https://fashn.ai/docs
-    Set FASHN_API_KEY in environment or .env.
+    Set FASHN_API_KEY in environment.
     """
 
-    def __init__(self, cfg: dict[str, Any]) -> None:
+    def __init__(self, cfg: dict) -> None:
         api_cfg = cfg.get("fashn_api", {})
         self._base_url = api_cfg.get("base_url", "https://api.fashn.ai/v1").rstrip("/")
         self._timeout = api_cfg.get("timeout", 120)
@@ -34,13 +32,9 @@ class FashnAPIAdapter(VTONAdapter):
     def generate(
         self,
         garment: Image.Image,
-        garment_mask: Image.Image,
         person: Image.Image,
-        agnostic_mask: Image.Image,
-        pose_data: dict[str, Any],
         category: str,
     ) -> Image.Image:
-        # Fashn.ai handles pose/parsing internally; we only send the two images.
         files = {
             "model_image": ("person.png", pil_to_bytes(person), "image/png"),
             "garment_image": ("garment.png", pil_to_bytes(garment), "image/png"),
@@ -85,3 +79,6 @@ class FashnAPIAdapter(VTONAdapter):
             "dresses": "one-pieces",
         }
         return mapping.get(category, "tops")
+
+    def __repr__(self) -> str:
+        return self.__class__.__name__

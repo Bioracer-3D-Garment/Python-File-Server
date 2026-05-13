@@ -11,9 +11,8 @@ from PIL import Image
 
 from pipeline.job import Job, JobStatus
 from pipeline.preprocess.garment import preprocess_garment
-from pipeline.preprocess.pose import load_pose_cache
 from pipeline.postprocess.output import save_output
-from pipeline.vton.base import VTONAdapter
+from pipeline.vton.fashn_api import FashnAPIAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -23,26 +22,22 @@ def _discover_garments(input_dir: Path) -> list[Path]:
     return sorted(p for p in input_dir.iterdir() if p.suffix.lower() in exts)
 
 
-def _discover_poses(poses_dir: Path) -> list[str]:
+def _discover_poses(poses_dir: Path) -> list[Path]:
     exts = {".jpg", ".jpeg", ".png", ".webp"}
-    return sorted(p.stem for p in poses_dir.iterdir() if p.suffix.lower() in exts)
+    return sorted(p for p in poses_dir.iterdir() if p.suffix.lower() in exts)
 
 
-def _run_job(job: Job, adapter: VTONAdapter, cfg: dict[str, Any], output_dir: Path | None = None) -> Job:
+def _run_job(job: Job, adapter: FashnAPIAdapter, cfg: dict[str, Any], output_dir: Path | None = None) -> Job:
     job.status = JobStatus.RUNNING
     try:
-        cache_dir = Path(cfg["pipeline"]["cache_dir"])
-        garment, garment_mask, category = preprocess_garment(job.garment_path, cfg)
+        garment, category = preprocess_garment(job.garment_path, cfg)
         job.garment_category = category
 
-        pose = load_pose_cache(job.pose_id, cache_dir)
+        person = Image.open(job.pose_path).convert("RGB")
 
         result: Image.Image = adapter.generate(
             garment=garment,
-            garment_mask=garment_mask,
-            person=pose["person"],
-            agnostic_mask=pose["agnostic_mask"],
-            pose_data=pose["keypoints"],
+            person=person,
             category=category,
         )
 
@@ -59,12 +54,12 @@ def _run_job(job: Job, adapter: VTONAdapter, cfg: dict[str, Any], output_dir: Pa
 
 def run_batch(
     cfg: dict[str, Any],
-    adapter: VTONAdapter,
+    adapter: FashnAPIAdapter,
     run_id: str | None = None,
 ) -> Path:
     """
-    Process every garment × every pose and write result images directly to outputs/<run_id>/.
-    
+    Process every garment × every pose and write result images to outputs/<run_id>/.
+
     Returns the path to the run output directory.
     """
     if run_id is None:
@@ -77,20 +72,20 @@ def run_batch(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     garments = _discover_garments(input_dir)
-    pose_ids = _discover_poses(poses_dir)
+    pose_paths = _discover_poses(poses_dir)
 
     if not garments:
         raise ValueError(f"No garment images found in {input_dir}")
-    if not pose_ids:
+    if not pose_paths:
         raise ValueError(f"No pose images found in {poses_dir}")
 
     jobs = [
-        Job(garment_path=g, pose_id=p, pose_path=poses_dir / p)
+        Job(garment_path=g, pose_id=pose_path.stem, pose_path=pose_path)
         for g in garments
-        for p in pose_ids
+        for pose_path in pose_paths
     ]
 
-    logger.info("Starting batch: %d garments × %d poses = %d jobs", len(garments), len(pose_ids), len(jobs))
+    logger.info("Starting batch: %d garments × %d poses = %d jobs", len(garments), len(pose_paths), len(jobs))
 
     workers = pcfg.get("workers", 4)
 

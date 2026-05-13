@@ -16,7 +16,7 @@ def load(path: Path | str = _DEFAULT_CONFIG) -> dict[str, Any]:
 
     # Resolve relative directory paths against the project root (parent of config/)
     project_root = path.parent.parent
-    for key in ("input_dir", "poses_dir", "cache_dir", "output_dir"):
+    for key in ("input_dir", "poses_dir", "output_dir"):
         if key in cfg.get("pipeline", {}):
             p = Path(cfg["pipeline"][key])
             if not p.is_absolute():
@@ -32,7 +32,3 @@ def load(path: Path | str = _DEFAULT_CONFIG) -> dict[str, Any]:
                 values[key] = os.environ[env_key]
 
     return cfg
-
-
-def get_adapter_name(cfg: dict[str, Any]) -> str:
-    return cfg["vton"]["adapter"]

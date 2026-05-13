@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import pytest
 from PIL import Image
@@ -31,18 +30,12 @@ def sample_config(tmp_path) -> dict:
             "workers": 1,
             "input_dir": str(tmp_path / "inputs"),
             "poses_dir": str(tmp_path / "poses"),
-            "cache_dir": str(tmp_path / "cache"),
             "output_dir": str(tmp_path / "outputs"),
         },
         "garment": {
             "target_width": 32,
             "target_height": 32,
             "background_threshold": 0.90,
-        },
-        "vton": {
-            "adapter": "fashn_api",
-            "num_inference_steps": 1,
-            "guidance_scale": 1.0,
         },
         "postprocess": {
             "quality_threshold": 0.0,
@@ -53,16 +46,3 @@ def sample_config(tmp_path) -> dict:
             "timeout": 10,
         },
     }
-
-
-@pytest.fixture()
-def pose_cache(tmp_path, tiny_rgb, tiny_mask) -> tuple[Path, str]:
-    """Create a minimal pose cache entry and return (cache_dir, pose_id)."""
-    cache_dir = tmp_path / "cache"
-    cache_dir.mkdir()
-    pose_id = "pose_test"
-    tiny_rgb.save(cache_dir / f"{pose_id}_person.png")
-    tiny_mask.save(cache_dir / f"{pose_id}_agnostic.png")
-    tiny_mask.save(cache_dir / f"{pose_id}_parse.png")
-    (cache_dir / f"{pose_id}_keypoints.json").write_text(json.dumps({}))
-    return cache_dir, pose_id

@@ -1,126 +1,114 @@
 # Bioracer VTON Pipeline
 
 AI pipeline that generates realistic model photos from flat-lay garment images.  
-Takes a garment + a bank of pre-approved model poses → produces `N garments × M poses` output images.
+Takes a garment + a bank of pre-approved model poses → produces `N garments × M poses` output images via the [Fashn.ai](https://fashn.ai) API.
 
 ---
 
 ## Architecture
 
 ```
-inputs/garments/         poses/ (pre-approved bank)
-       │                        │
-       ▼                        ▼
- GarmentPreprocessor     PosePreprocessor (cached once)
- - bg removal (rembg)    - human parsing (SCHP)
- - resize + pad          - pose keypoints (DWPose)
- - category detection    - agnostic mask
-       │                        │
-       └──────────┬─────────────┘
-                  ▼
-          BatchOrchestrator  (thread pool, JSONL logging)
-                  │
-                  ▼
-          VTONAdapter  ← swap via config, zero code change
-          ┌─────────────────────┐
-          │ fashn_api  (REST)   │  default — no GPU needed
-          │ idm_vton   (local)  │  requires GPU + weights
-          │ ootdiffusion (local)│  requires GPU + weights
-          └─────────────────────┘
-                  │
-                  ▼
-          outputs/{run_id}/{product_id}/{product_id}__{pose_id}.png
+inputs/              poses/
+(garment images)     (model photos — one per desired pose)
+       │                    │
+       ▼                    ▼
+ GarmentPreprocessor   Image.open() directly
+ - bg removal (rembg)
+ - resize + pad
+ - category detection (CLIP)
+       │                    │
+       └────────┬───────────┘
+                ▼
+        BatchOrchestrator  (thread pool)
+                │
+                ▼
+        FashnAPIAdapter
+        - sends garment + model photo + category
+        - Fashn.ai handles pose & parsing internally
+                │
+                ▼
+        outputs/{run_id}/{product_id}__{pose_id}.png
 ```
 
 ---
 
-## Quick Start (Fashn.ai — no GPU required)
+## Quick Start
 
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Configure secrets
-cp .env.example .env
-# Edit .env and set FASHN_API_KEY
+# 2. Set your API key
+export FASHN_API_KEY=your_key_here
 
 # 3. Add garment images
 cp your_garment.png inputs/
 
-# 4. Add pose images
+# 4. Add model/pose photos (one file per pose)
 cp model_pose_01.jpg poses/
+cp model_pose_02.jpg poses/
 
-# 5. Build the pose cache (run once, or after adding new poses)
-python scripts/preprocess_poses.py
-
-# 6. Run the batch
-python scripts/run_batch.py --adapter fashn_api
+# 5. Run the batch
+python scripts/run_batch.py
 ```
 
-Results land in `outputs/<run_id>/`.  
-A `results.jsonl` file records every job with its status and output path.
+Results land in `outputs/<run_id>/`.
 
 ---
 
-## Switching VTON Adapters
+## CLI Options
 
-Edit `config/pipeline.yaml`:
+```bash
+python scripts/run_batch.py --help
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--config PATH` | `config/pipeline.yaml` | Config file to use |
+| `--run-id ID` | timestamp | Human-readable run label |
+| `--no-open` | off | Skip auto-opening result images |
+
+---
+
+## Configuration Reference
+
+`config/pipeline.yaml`:
 
 ```yaml
-vton:
-  adapter: idm_vton   # or: ootdiffusion | fashn_api
+pipeline:
+  workers: 4          # concurrent jobs
+  input_dir: inputs/
+  poses_dir: poses/
+  output_dir: outputs/
+
+garment:
+  target_width: 768
+  target_height: 1024
+
+fashn_api:
+  base_url: https://api.fashn.ai/v1
+  timeout: 120        # seconds per request
 ```
 
-Or pass `--adapter` at runtime:
+Any value can be overridden with an environment variable:
 
-```bash
-python scripts/run_batch.py --adapter ootdiffusion
+```
+PIPELINE__<SECTION>__<KEY>=value
 ```
 
-### IDM-VTON setup
-
-```bash
-git clone https://github.com/yisol/IDM-VTON
-pip install -r IDM-VTON/requirements.txt
-# Download weights from HuggingFace: yisol/IDM-VTON → IDM-VTON/weights/idm_vton/
-export IDMVTON_REPO_PATH=IDM-VTON
-```
-
-### OOTDiffusion setup
-
-```bash
-git clone https://github.com/levihsu/OOTDiffusion
-pip install -r OOTDiffusion/requirements.txt
-# Download weights per OOTDiffusion README
-export OOTD_REPO_PATH=OOTDiffusion
-```
+Example: `PIPELINE__FASHN_API__TIMEOUT=60`
 
 ---
 
-## Pose Bank Preprocessing
+## Output Naming
 
-DWPose (keypoints) and SCHP (human parsing) must be installed for local preprocessing.  
-Fashn.ai handles parsing server-side — preprocess_poses.py still runs but skips these steps gracefully.
-
-```bash
-git clone https://github.com/IDEA-Research/DWPose
-git clone https://github.com/GoGoDuck912/Self-Correction-Human-Parsing SCHP
-export DWPOSE_PATH=DWPose
-export SCHP_PATH=SCHP
-
-python scripts/preprocess_poses.py --force
 ```
-
----
-
-## Docker
-
-```bash
-# GPU (IDM-VTON / OOTDiffusion)
-docker compose up pipeline-gpu --build
-
-# CPU / API-only (Fashn.ai)
-docker compose --profile cpu up pipeline-cpu --build
+outputs/
+  run_20260513_143000/
+    jersey_001__pose_01.png
+    jersey_001__pose_02.png
+    bib_shorts_002__pose_01.png
+    bib_shorts_002__pose_02.png
 ```
 
 ---
@@ -131,31 +119,13 @@ docker compose --profile cpu up pipeline-cpu --build
 pytest
 ```
 
-Tests use synthetic images and a mock adapter — no GPU or API key required.
+Tests use synthetic images and a mock adapter — no API key required.
 
 ---
 
-## Output Naming
+## Docker
 
+```bash
+# API-only (no GPU needed)
+docker compose --profile cpu up pipeline-cpu --build
 ```
-outputs/
-  run_20260511_143000/
-    results.jsonl
-    jersey_001/
-      jersey_001__pose_001.png
-      jersey_001__pose_002.png
-    bib_shorts_002/
-      bib_shorts_002__pose_001.png
-```
-
----
-
-## Configuration Reference
-
-All settings live in `config/pipeline.yaml`. Any value can be overridden at runtime with an environment variable:
-
-```
-PIPELINE__<SECTION>__<KEY>=value
-```
-
-Example: `PIPELINE__VTON__ADAPTER=fashn_api`

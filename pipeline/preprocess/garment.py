@@ -5,9 +5,8 @@ from typing import Any
 
 from PIL import Image
 
-from pipeline.utils.image import binary_mask_from_alpha, pad_to_aspect
+from pipeline.utils.image import pad_to_aspect
 
-# Lazy import so rembg is only required when actually used
 _REMBG_SESSION = None
 
 
@@ -53,13 +52,12 @@ def detect_category(img: Image.Image) -> str:
 def preprocess_garment(
     path: Path,
     cfg: dict[str, Any],
-) -> tuple[Image.Image, Image.Image, str]:
+) -> tuple[Image.Image, str]:
     """
     Load, remove background, resize, and categorise a garment image.
 
     Returns:
         garment_rgba:  RGBA image with clean background
-        garment_mask:  binary L-mode mask
         category:      'upper_body' | 'lower_body' | 'dresses'
     """
     gcfg = cfg.get("garment", {})
@@ -68,9 +66,7 @@ def preprocess_garment(
 
     raw = Image.open(path).convert("RGBA")
     rgba = remove_background(raw)
-    garment_mask = binary_mask_from_alpha(rgba)
     garment_rgb = pad_to_aspect(rgba, w, h)
-    garment_mask = pad_to_aspect(garment_mask.convert("RGB"), w, h).convert("L")
     category = detect_category(rgba)
 
-    return garment_rgb, garment_mask, category
+    return garment_rgb, category
