@@ -12,8 +12,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'mp4', 'jpg', 'png'}
 
 # Public URL base for backend
-PUBLIC_URL_BASE = "http://localhost:8080"
-
+PUBLIC_URL_BASE = os.getenv('PUBLIC_URL_BASE')
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
