@@ -82,7 +82,7 @@ def list_files():
         if safe_filename != filename:
             return jsonify({'error': 'Invalid filename'}), 400
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], safe_filename)
-        if not os.path.exists(fi    lepath):
+        if not os.path.exists(filepath):
             return jsonify({'error': 'File not found'}), 404
         try:
             os.remove(filepath)
