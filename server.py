@@ -19,7 +19,7 @@ def allowed_file(filename: str) -> bool:
 
 def get_public_url(filename: str) -> str:
     if PUBLIC_URL_BASE:
-        return f"{PUBLIC_URL_BASE.rstrip('/')}/{filename}"
+        return f"{PUBLIC_URL_BASE.rstrip('/')}/files/{filename}"
     return url_for('uploaded_file', filename=filename, _external=True)
 
 
