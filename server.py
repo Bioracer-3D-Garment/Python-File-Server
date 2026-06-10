@@ -1,6 +1,8 @@
 from flask import Flask, request, send_from_directory, jsonify, url_for
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
+
 
 app = Flask(__name__)
 
@@ -11,6 +13,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'mp4', 'jpg', 'jpeg', 'png'}
 
 PUBLIC_URL_BASE = os.getenv('PUBLIC_URL_BASE')
+
+_raw_origins = os.getenv('CORS_ORIGINS', '*')
+CORS_ORIGINS = [o.strip() for o in _raw_origins.split(',')] if _raw_origins != '*' else '*'
+CORS(app, origins=CORS_ORIGINS)
 
 
 def allowed_file(filename: str) -> bool:
