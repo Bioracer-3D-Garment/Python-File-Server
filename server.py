@@ -110,17 +110,20 @@ def list_files():
 
 @app.route('/files/<path:filename>', methods=['GET'])
 def uploaded_file(filename):
+    print(f"Requested file: {filename}")
     safe_filename = secure_filename(filename)
-
+    print(f"Safe filename: {safe_filename}")
     if safe_filename != filename:
         return jsonify({'error': 'invalid filename'}), 400
-
+    print(f"Serving file from: {app.config['UPLOAD_FOLDER']}, filename: {safe_filename}")   
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
 @app.route('/files/<path:filename>', methods=['DELETE'])
 def delete_file(filename):
     safe_filename = secure_filename(filename)
+    print(f"Requested file deletion: {filename}")
+    print(f"Safe filename: {safe_filename}")
 
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], safe_filename)
 
@@ -135,4 +138,4 @@ def delete_file(filename):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
